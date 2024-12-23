@@ -5,7 +5,7 @@
 
 The word _target_ is extensively used in this document.
 The [glossary](https://doc.rust-lang.org/cargo/appendix/glossary.html#target) defines its many meanings.
-Here, _target_ refers to the "Target Architeture" for which a package is built. The terms
+Here, _target_ refers to the "Target Architeture" for which a package is built. Otherwise, the terms
 "cargo-target" and "target-triple" are used in accordance with their definitions in the glossary.
 
 # Summary
@@ -33,7 +33,7 @@ many different targets. Commands run on a workspace ignore packages that don't s
 
 Once it is known that a package will only ever build for a subset of targets, it opens
 the door for more advanced control over dependencies.
-For example, transient dependencies declared under a `[target.**.dependencies]` table could be
+For example, transient dependencies declared under a `[target.**.dependencies]` table are
 excluded from `Cargo.lock` if the dependent's `supported-targets` is mutually exclusive with
 the target preconditions under which the dependencies are included.
 This is especially relevant to areas such as WebAssembly and embedded programming,
@@ -111,7 +111,7 @@ that an example, test, or benchmark has access to the package's library and bina
 It is possible that an example, test, or benchmark is made for a specific subset of the `supported-targets`.
 It may also require extra dependencies that are specific to this subset.
 These extra dependencies can be specified under the `[target.<subset>.dev-dependencies]`
-table, as [detailed later](#target-specific-dependencies).
+table, as [detailed later](#platform-specific-dependencies).
 
 ## Compatibility of `[build-dependencies]`
 
@@ -124,19 +124,19 @@ the _host_'s target-triple at build time.
 In the future, having all build dependencies support all targets could be enforced to ensure
 that a crate can be built on any host. This is left as a [future possibility](#restrict-build-dependencies).
 
-## Target specific dependencies
-[target-specific-dependencies]: #target-specific-dependencies
+## Platform-specific dependencies
+[platform-specific-dependencies]: #platform-specific-dependencies
 
-Target specific dependencies are dependencies under the `[target.**]` table. This includes
+Platform-specific dependencies are dependencies under the `[target.**]` table. This includes
 normal dependencies, build-dependencies, and dev-dependencies.
 
-When target-specific dependencies are declared, the target preconditions under which they are
+When platform-specific dependencies are declared, the conditions under which they are
 declared must be a subset of each dependency's `supported-targets`.
 For example, a dependency declared under `[target.'cfg(target_os = "linux")'.dependencies]`
 must at least support the `linux` OS.
 
-For regular dependencies and dev-dependencies, it suffices for a target-specific dependency to support the
-_intersection_ of the package's supported-targets, and the target preconditions it is declared under.
+For regular dependencies and dev-dependencies, it suffices for a platform-specific dependency to support the
+_intersection_ of the package's supported-targets, and the target conditions it is declared under.
 For example:
 ```toml
 [package]
