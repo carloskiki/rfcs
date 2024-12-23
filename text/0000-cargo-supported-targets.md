@@ -59,9 +59,9 @@ name = "hello_cargo"
 version = "0.1.0"
 edition = "2021"
 supported-targets = [
-    "wasm32-unknown-unknown"
+    "wasm32-unknown-unknown",
     'cfg(target_os = "linux")',
-    'cfg(target_os = "macos")',
+    'cfg(target_os = "macos")'
 ]
 ```
 Here, only targets satisfying: the `wasm32-unknown-unknown` target, __or__ the `linux` OS, __or__ the `macos` OS,
