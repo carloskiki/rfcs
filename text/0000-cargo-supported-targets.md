@@ -147,7 +147,8 @@ supported-targets = ['cfg(target_os = "linux")']
 foo = "0.1.0"
 ```
 Here, it suffices for `foo` to support `cfg(all(target_os = "linux", target_pointer_width = "64"))`.
-- _Note_: This does not apply to `build-dependencies`.
+
+_Note_: This does not apply to `build-dependencies`.
 
 ## Artifact dependencies
 
