@@ -3,10 +3,10 @@
 - RFC PR: [rust-lang/rfcs#0000](https://github.com/rust-lang/rfcs/pull/0000)
 - Rust Issue: [rust-lang/rust#0000](https://github.com/rust-lang/rust/issues/0000)
 
-The word _target_ in `cargo` has two different meanings which are both relevant to this RFC.
-The following terms will be used:
-- "cargo-target": The part of a package that is built (`[lib]`, `[[bin]]`, `[[example]]`, `[[test]]`, or `[[bench]]`).
-- "target": The architecture/platform that `rustc` is compiling for.
+The word _target_ is extensively used in this document.
+The [glossary](https://doc.rust-lang.org/cargo/appendix/glossary.html#target) defines its many meanings.
+Here, _target_ refers to the "Target Architeture" for which a package is built. The terms
+"cargo-target" and "target-triple" are used in accordance with their definitions in the glossary.
 
 # Summary
 
@@ -152,7 +152,7 @@ Here, it suffices for `foo` to support `cfg(all(target_os = "linux", target_poin
 
 If an artifact dependency has a `target` field, then the dependency is not checked against the
 package's `supported-targets`. However, the selected `target` for the dependency must be compatible with
-the dependency's `supported-targets`. If a dependency does not have a `target` field, then
+the dependency's `supported-targets`. If it does not have a `target` field, then
 it is checked against the package's `supported-targets`, like any other dependency.
 
 ## Comparing `supported-targets`
@@ -274,14 +274,14 @@ same mechanism as for `[target.'cfg(..)']` is used (using
 ## Ignoring builds for unsupported targets
 
 When the target used is not supported by the package being built, the package will either be
-skipped or an error will be raised, depending on how `cargo` was invoked. If cargo was invoked
-in a workspace or virtual workspace without specifying a specific package, then the package
-will be skipped. If a specific package was specified using `--package`, or if cargo is
-invoked in a package directory, then an error will be raised.
+skipped or an error will be raised, depending on how `cargo` was invoked. If cargo is invoked
+in a workspace or virtual workspace without specifying a specific package, then `cargo` skips the package.
+If a specific package is specified using `--package`, or if `cargo` is invoked on a single package,
+then an error is raised.
 
 ## Eliminating unused dependencies from `Cargo.lock`
 
-A package's dependencies may have `[target.'cfg(..)'.dependencies]` tables, which may never be used because of the
+A package's dependencies may themselves have `[target.'cfg(..)'.dependencies]` tables, which may never be used because of the
 `supported-targets` restrictions of the package. These can safely be eliminated from the dependency tree of the package.
 
 Consider the following example:
@@ -301,14 +301,18 @@ name = "bar"
 [target.'cfg(target_os = "macos")'.dependencies]
 baz = "0.1.0"
 ```
-Currently, `baz` is included in the dependency tree of `foo`, even though `foo` may never be intended to be built
-for `macos`. With the addition of `supported-targets`, `baz` can be purged from the dependency tree of `foo`, since
+Currently, `baz` is included in the dependency tree of `foo`, even though `foo` is never built for `macos`.
+With the addition of `supported-targets`, `baz` can be purged from the dependency tree of `foo`, since
 `target_os = "macos"` is mutually exclusive with `target_os = "linux"`.
+
+Formally, dependencies (and transitive dependencies) under `[target.**.dependencies]` tables are
+eliminated from the dependency tree of a package if the `supported-targets` of the package is mutually exclusive
+with the target preconditions of the dependency.
 
 # Drawbacks
 [drawbacks]: #drawbacks
 
-- The `cfg` syntax is very expressive, but also very complex. As outlined above
+- The `cfg` syntax is very expressive, but also very complex. As outlined above,
     detecting subset and mutual exclusivity relations is not trivial.
 - Performance: this is a lot of extra calls to rustc.
     Hopefully these are all compatible with the rustc cache, so they won't make things too bad.
@@ -361,7 +365,7 @@ to support the union of all `supported-targets` of all cargo-targets.
 Examples, tests and benchmarks also have access to the package's library and binaries, so they must have the
 same set of `supported-targets`.
 
-See [using a package vs. using a workspace](package-vs-workspace).
+See also: [using a package vs. using a workspace](package-vs-workspace).
 
 [package-vs-workspace]: #https://blog.rust-lang.org/inside-rust/2024/02/13/this-development-cycle-in-cargo-1-77.html#when-to-use-packages-or-workspaces
 
@@ -400,7 +404,7 @@ Has this feature been seen anywhere else before?
 - What if one wants to exclude a single target-triple? Groups can be excluded with `cfg(not(..))`, but there
 	is currently no way of excluding specific targets (Would anyone ever require this?).
 - Some crates will inevitably have target requirements that are too strict, how
-    do we make users bypass the error (probably with some `--ignore-**` flag)?
+    do we make users bypass the error (probably with some `--ignore-**` flag)? Do we want to allow this?
 - Should we solve for this during dependency version resolution? (the current rationale is that we do not want
 	targets to affect package version resolution).
 
@@ -414,7 +418,7 @@ Currently, a build script can have any dependency. A problem can arise if a crat
 a package that does not support `target_os = "windows"` for example. With this RFC, it would be
 possible to only allow dependencies supporting all targets in build scripts.
 
-## Lint against unusable target-specific tables
+## Lint against useless target-specific tables
 
 If a package has:
 ```toml
@@ -473,11 +477,6 @@ _Note:_ The contrapositive of these relations is also true.
 Also, `target_family` is currently defined as not having mutually exclusive elements. This is because `target_family = "wasm"`
 is not mutually exclusive with other target families. But, `target_family = "unix"` could be defined as mutually exclusive
 with `target_family = "windows"` to increase usability. 
-
-## Supported targets at the build-target level
-[at-the-build-target-level]: #supported-targets-at-the-build-target-level
-
-TODO
 
 ## Misc
 
