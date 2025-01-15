@@ -112,15 +112,8 @@ then an error is raised.
 # Drawbacks
 [drawbacks]: #drawbacks
 
-TODO: update
-
-- The `cfg` syntax is very expressive, but also very complex. As outlined above,
-    detecting subset and mutual exclusivity relations is not trivial.
-- Comparing `supported-targets` lists is an `O(n * m)` operation, with `n` and `m` being the number of elements
-    in the lists. (I doubt this will be a problem, as `n` and `m` are expected to be small).
-- Performance: this is a lot of extra calls to rustc.
-    Hopefully these are all compatible with the rustc cache, so they won't make things too bad.
-- This feature must be learned by those wanting to use dependencies with `supported-targets` specified.
+- Once implemented this does not yet solve the problem of dependency pruning in `Cargo.lock`, which is a
+    common use case for this feature.
 - This is the first step towards a target aware `cargo`, which may increase `cargo`'s complexity, and bring
     more feature requests along these lines.
 
@@ -214,9 +207,18 @@ with the same attribute is added, the whole ecosystem would have to be updated.
 # Prior art
 [prior-art]: #prior-art
 
-TODO: update
+Locally, users can already specify which targets they want to build for by default using the `target` field in
+`cargo`'s `config.toml` file. This setting does not affect packages published on `crates.io`. On nightly,
+the `per-package-target` feature defines the `package.default-target` field
+in `Cargo.toml` to specify the default target for a package. Both of these options
+can be overwritten by the `--target` flag, and only work for a single target-triple.
 
-Previously, crates have mainly used their documentation to specify which targets they support, or they would
+The `per-package-target` feature also defines the `force-target` field, which is supposed to force the package
+to build for the specific target-triple. This does not interact well when used in dependencies, as one would expect a dependency
+to be built for the same target as the package. `supported-targets` supersedes `force-target` because instead of enforcing
+a single target, it enforces a set of targets.
+
+Published crates have mainly used their documentation to specify which targets they support, or they would
 leave it up to the user to infer it. Some crates also made use of compile time errors to ensure that
 `cfg` requirements are met, for example:
 ```rust
@@ -226,17 +228,6 @@ compile_error!("unsupported target cfg");
 [`getrandom`](https://github.com/rust-random/getrandom/blob/9fb4a9a2481018e4ab58d597ecd167a609033149/src/backends.rs#L156-L160)
 is an example of a crate utilizing this method.
 
-Locally, users can already specify which targets they want to build for by default using the `target` field in
-`cargo`'s `config.toml` file. This setting is only a local configuration however, and does not affect
-packages published on `crates.io`. On nightly, the `per-package-target` feature defines the `default-target` field
-of the `[package]` table in `Cargo.toml` to specify the default target for a package. Both of these options
-can be overwritten by the `--target` flag, and only work for a single target-triple.
-
-The `per-package-target` feature also defines the `force-target` field, which is supposed to force the package
-to build for the specific target-triple. This does not interact well when used in dependencies, as one would expect a dependency
-to be built for the same target as the package. `supported-targets` supersedes `force-target` because instead of enforcing
-a single target, it enforces a set of targets.
-
 I am not aware of a package manager that solves this issue like in this RFC. In other system level languages,
 vendoring dependencies is a common practice, and the user would be responsible for ensuring that the dependencies
 are compatible with the target. For interpreted languages, this is a non-issue because any platform being able
@@ -245,14 +236,8 @@ to run the interpreter can run the package.
 # Unresolved questions
 [unresolved-questions]: #unresolved-questions
 
-TODO: update
-
 - What if one wants to exclude a single target-triple? Groups can be excluded with `cfg(not(..))`, but there
 	is currently no way of excluding specific targets (Would anyone ever require this?).
-- Some crates will inevitably have target requirements that are too strict, how
-    do we make users bypass the error (probably with some `--ignore-**` flag)? Do we want to allow this?
-- Should we solve for this during dependency version resolution? (the current rationale is that we do not want
-	targets to affect package version resolution).
 
 # Future possibilities
 [future-possibilities]: #future-possibilities
