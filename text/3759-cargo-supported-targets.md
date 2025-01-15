@@ -214,7 +214,8 @@ likely happen is that packages would copy and paste the target-triple list match
 requirements from somewhere or someone else. Every time a new target with the same attribute is
 added, the whole ecosystem would have to be updated.
 
-# Prior art [prior-art]: #prior-art
+# Prior art
+[prior-art]: #prior-art
 
 Locally, users can already specify which targets they want to build for by default using the
 `target` field in `cargo`'s `config.toml` file. This setting does not affect packages published on
