@@ -104,9 +104,10 @@ same mechanism as for `[target.'cfg(..)']` is used (using
 ## Ignoring builds for unsupported targets
 [ignoring-builds]: #igonring-builds-for-unsupported-targets
 
-If cargo is invoked in a workspace or virtual workspace without specifying a specific package, then `cargo` skips
-any package that does not support the selected target. If a package is specified using `--package`, or if `cargo`
-is invoked on a single package, then an error is raised.
+If cargo is invoked in a workspace or virtual workspace without specifying a package as build-target, then `cargo` skips
+any package that does not support the selected target. If a package is specified using `--package` or if `cargo`
+is invoked on a single package, and the selected target does not satisfy the `supported-targets` of the package,
+then an error is raised.
 
 # Drawbacks
 [drawbacks]: #drawbacks
