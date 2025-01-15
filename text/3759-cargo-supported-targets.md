@@ -196,7 +196,7 @@ here along with their drawbacks.
 Instead of using `cfg` specifications, one could use wildcards (e.g., `x86_64-*-linux-*`).
 This is much simpler to implement, target-triples are syntactically checked for a match instead
 of solving set relations for `cfg`. However, this is not as expressive as `cfg`, and does not correctly
-represent the semantics of target triples. For example, supporting `target_family = "unix"` would
+represent the semantics of target-triples. For example, supporting `target_family = "unix"` would
 require an annoyingly long list of wildcard patterns. Things like `target_pointer_width = "32"` are
 even harder to represent, and things like `target_feature = "avx"` are basically not representable.
 Also, this is new syntax not currently used by cargo.
@@ -206,9 +206,9 @@ Also, this is new syntax not currently used by cargo.
 This is an even stricter version of the above. Set relations between `supported-targets` lists are exact,
 and the resolver can determine if a platform-specific dependency can be pruned from the dependency tree more easily,
 hence why the original proposal chose this format. Being even simpler to implement, this alternative may not be
-expressive enough for the common use case. Packages rarely support specific target triples, rather they
+expressive enough for the common use case. Packages rarely support specific target-triples, rather they
 support/require specific target attributes. What would likely happen is that packages would copy and paste
-the target triple list matching their requirements from somewhere or someone else. Every time a new target
+the target-triple list matching their requirements from somewhere or someone else. Every time a new target
 with the same attribute is added, the whole ecosystem would have to be updated.
 
 # Prior art
