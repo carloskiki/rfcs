@@ -21,14 +21,18 @@ dependencies, and they can only be built for targets that satisfy their `support
 Some packages do not support every possible `rustc` target. Currently, there is no way to formally
 specify which targets a package does, or does not support.
 
+This feature enhances developer experience when working in workspaces containing packages designed for
+many different targets. Commands run on a workspace ignore packages that don't support the selected target.
+
+## Long-term Motivations
+
+_These do not motivate the RFC itself, rather they motivate the [future possibilities](#future-possibilities) section._
+
 ### Developer Experience
 
 Trying to depend on a crate that does not support one's target often produces cryptic build errors,
 or worse, fails at runtime. Being able to specify which targets are supported ensures that unsupported
 targets cannot build the crate, and also makes build errors specific.
-
-This feature also enhances developer experience when working in workspaces containing packages designed for
-many different targets. Commands run on a workspace ignore packages that don't support the selected target.
 
 ### Dependency Management 
 
@@ -66,26 +70,18 @@ supported-targets = [
 ]
 ```
 Here, only targets satisfying: the `wasm32-unknown-unknown` target, __or__ the `linux` OS, __or__ the `macos` OS,
-are allowed to build the package. If no `supported-targets` was specified, then any target would be allowed.
-
-User experience is enhanced by raising an error that fails compilation when the supported targets
-of a package are not satisfied by the selected target. A package's `supported-targets` must be a subset
-of its dependencies' `supported-targets`, otherwise the build also fails.
-
-When `supported-targets` is not specified, any target is accepted, so all dependencies must support
-all targets.
+are allowed to build the package. User experience is enhanced by raising an error that fails compilation when
+the supported targets of a package are not satisfied by the selected target.
 
 This feature should be used when a package clearly does not support all targets. For example: `io-uring`
 requires `cfg(target_os = "linux")`, `gloo` requires `cfg(target_family = "wasm")`, and
 `riscv` requires `cfg(target_arch = "riscv32")` or `cfg(target_arch = "riscv64")`.
 
-This feature should also be used to increase cargo's knowledge of a package. For example,
-when working in a workspace where some packages compile with `#[no_std]` and `target_os = "none"`, 
+This feature increases cargo's knowledge of a package. For example,
+when working in a workspace where some packages are for a platform with `target_os = "none"`, 
 and some others are tools that require a desktop OS, using `supported-targets` makes
 `cargo <command>` ignore packages which have `supported-targets` that are not satisfied
 by the selected target.
-
-Cargo's documentation should give clear guidance for when to use this field, and should not suggest using it by default. In particular, we should steer users to use this when they have good reason to believe the crate will not compile or work as expected (e.g. because it uses target-specific APIs), and not use it merely for "I haven't personally tested this on other targets".
 
 # Reference-level explanation
 [reference-level-explanation]: #reference-level-explanation
@@ -94,174 +90,6 @@ When a `cargo` build command (e.g. `check`, `build`, `run`, `clippy`) is run, it
 the selected target satisfies the `supported-targets` of the package being built. If it does not, the package is
 skipped or an error is raised, depending on how [`cargo` was invoked](ignoring-builds). However, `supported-targets`
 are _not_ checked if the cargo command does not require compilation (e.g., `cargo fmt`).
-
-## Compatibility of `[dependencies]`
-
-The set of `supported-targets` of a package must be a subset of the `supported-targets` of its
-`[dependencies]`. If the crate itself has no `supported-targets` specified,
-then all dependencies must support all targets.
-
-If a dependency does not respect this requirement (if it is not compatible), an error is raised and the build fails.
-
-If this was not enforced, a package could support targets that are not supported by its dependencies,
-which does not make sense.
-
-## Compatibility of `[dev-dependencies]`
-
-`[dev-dependencies]` are checked the using the same method as regular `[dependencies]`. That is, the package's
-`supported-targets` must be a subset of every `[dev-dependencies]`'s `supported-targets`. The rationale is
-that an example, test, or benchmark has access to the package's library and binaries, and so it must respect the
-`supported-targets` of the package.
-
-## Compatibility of `[build-dependencies]`
-
-What makes `[build-dependencies]` unique is that they are built for the host computer,
-and not the selected target. As such, they are not restrained by the `supported-targets`
-of the package. Hence, all dependencies are allowed in the `[build-dependencies]` table.
-However, a build error is raised if one of the build dependencies does not support
-the _host_'s target-triple at build time.
-
-In the future, having all build dependencies support all targets could be enforced to ensure
-that a crate can be built on any host. This is left as a [future possibility](#restrict-build-dependencies).
-
-## Platform-specific dependencies
-[platform-specific-dependencies]: #platform-specific-dependencies
-
-Platform-specific dependencies are dependencies under the `[target.**]` table. This includes
-normal dependencies, build-dependencies, and dev-dependencies.
-
-When platform-specific dependencies are declared, the conditions under which they are
-declared must be a subset of each dependency's `supported-targets`.
-For example, a dependency declared under `[target.'cfg(target_os = "linux")'.dependencies]`
-must at least support the `linux` OS.
-
-For regular dependencies and dev-dependencies, it suffices for a platform-specific dependency to support the
-_intersection_ of the package's supported-targets, and the target conditions it is declared under.
-For example:
-```toml
-[package]
-# ...
-supported-targets = ['cfg(target_os = "linux")']
-
-[target.'cfg(target_pointer_width = "64")'.dependencies]
-foo = "0.1.0"
-```
-Here, it suffices for `foo` to support `cfg(all(target_os = "linux", target_pointer_width = "64"))`.
-
-## Artifact dependencies
-
-If an artifact dependency has a `target` field, then the dependency is not checked against the
-package's `supported-targets`. However, the selected `target` for the dependency must be compatible with
-the dependency's `supported-targets`, or else an error is raised. If the artifact dependency does not have a
-`target` field, then it is checked against the package's `supported-targets`, like any other dependency.
-
-## Comparing `supported-targets`
-
-When comparing two `supported-targets` lists, it is necessary to know if one is a _subset_ of the other,
-or if both are _mutually exclusive_. To proceed, both lists are flattened to
-the same representation, and they are then compared. This process is done internally, and does not
-affect the `Cargo.toml` file.
-
-### Flattening `not`, `any`, and `all` in `cfg` specifications
-[flattening-cfg]: #flattening-not-any-and-all-in-cfg-specifications
-
-Since `cfg` specifications can contain `not`, `any`, and `all` operators, these must be handled.
-This is done by flattening the `cfg` specification to a specific form. This form is equivalent to
-[disjunctive normal form](https://en.wikipedia.org/wiki/Disjunctive_normal_form).
-
-The `not` operator is "passed through" `any` and `all` operators using
-[De Morgan's laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws), until it reaches a single `cfg`
-specification. For example, `cfg(not(all(target_os = "linux", target_arch = "x86_64")))`
-is equivalent to `cfg(any(not(target_os = "linux"), not(target_arch = "x86_64")))`.
-
-Top level `any` operators are separated into multiple `cfg` specifications. For example,
-```toml
-supported-targets = ['cfg(any(target_os = "linux", target_os = "macos"))']
-```
-is transformed into
-```toml
-supported-targets = ['cfg(target_os = "linux")', 'cfg(target_os = "macos")']
-```
-
-Top level `all` operators are kept as is, as long as they do not contain nested `any`s or `all`s.
-If there is an `any` inside an `all`, the statement is split into multiple `all` statements.
-For example,
-```toml
-supported-targets = ['cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "arm"))']
-```
-is transformed into
-```toml
-supported-targets = [
-    'cfg(all(target_os = "linux", target_arch = "x86_64"))',
-    'cfg(all(target_os = "linux", target_arch = "arm"))'
-]
-```
-If an `all` contains an `all`, the inner `all` is flattened into the outer `all`.
-
-The result of these transformations on a `cfg` specification is a list of `cfg` specifications that 
-either contains a single specification, or an `all` operator with no nested operators.
-
-This procedure is run on all `cfg` elements of a `supported-targets` list. The resulting list
-can then be used to evaluate relations. In the end, the flattened representation can only contain
-explicit target-triples, `cfg(A)` containing a single `A`, or `cfg(all(A, B, ...))` with all
-`A, B, ...` being single elements.
-
-### The subset relation
-
-To determine if a `supported-targets` list "A" is a subset of another such list "B", the standard mathematical
-definition of subset is used. That is, "A" is a subset of "B" if and only if each element of "A" is
-contained in "B".
-
-So each element of "A" is compared against each element of "B" using the following rules:
-- A `target-triple` is a subset of another `target-triple` if they are the same.
-- A `target-triple` is a subset of a `cfg(..)` if the `cfg(..)` is satisfied by the `target-triple`.
-- A `cfg(..)` is not a subset of a `target-triple`.
-- A `cfg(all(A, B, ...))` is a subset of a `cfg(all(C, D ...))`,
-    if the list `C, D, ...` is a subset of the list `A, B, ...`.
-
-_Note_: All possible cases have been covered, since `cfg(A) == cfg(all(A))`.
-
-More rules could be defined, but these are left as a [future possibility](#more-cfg-relations).
-
-### Mutual exclusivity
-
-For a `supported-targets` list "A" to be mutually exclusive with another such list "B", each element of "A" must
-be mutually exclusive with _all_ elements of "B" (The inverse is also true).
-
-So each element of "A" is compared against each element of "B" using the following rules:
-- A `target-triple` is mutually exclusive with another `target-triple` if they are different.
-- A `target-triple` is mutually exclusive with a `cfg(..)` if the `cfg(..)` is not satisfied by
-    the `target-triple`.
-- A `cfg(all(A, B, ...))` is mutually exclusive with a `cfg(all(C, D, ...))` if any element of the list
-    `A, B, ...` is mutually exclusive with any element of the list `C, D, ...`.
-
-_Note_: All possible cases have been covered, since `cfg(A) == cfg(all(A))`.
-
-Two `cfg` singletons are mutually exclusive under the following rules:
-- `cfg(A)` is mutually exclusive with `cfg(not(A))`.
-- `cfg(<option> = "A")` is mutually exclusive with `cfg(<option> = "B")` if `A` and `B` are different,
-    and `<option>` has mutually exclusive elements.
-
-Some `cfg` options have mutually exclusive elements, while some do not. What is meant here is, for example,
-`target_arch = "x86_64"` and `target_arch = "arm"` are mutually exclusive (a target-triple cannot have both),
-while `target_feature = "avx"` and `target_feature = "rdrand"` are not.
-
-`cfg` options that have mutually exclusive elements:
-- `target_arch`
-- `target_os`
-- `target_env`
-- `target_abi`
-- `target_endian`
-- `target_pointer_width`
-- `target_vendor`
-
-Those that do not:
-- `target_feature`
-- `target_has_atomic`
-- `target_family`
-
-`target_family = "windows` and `target_family = "unix"` could also be defined as mutually exclusive to
-enhance usability, but this is left as a [future possibility](#more-cfg-relations).
 
 ## Behavior with unknown entries (and custom targets)
 
@@ -282,36 +110,6 @@ skipped or an error will be raised, depending on how `cargo` was invoked. If car
 in a workspace or virtual workspace without specifying a specific package, then `cargo` skips the package.
 If a specific package is specified using `--package`, or if `cargo` is invoked on a single package,
 then an error is raised.
-
-## Eliminating unused dependencies from `Cargo.lock`
-
-A package's dependencies may themselves have `[target.'cfg(..)'.dependencies]` tables, which may never be used because of the
-`supported-targets` restrictions of the package. These can safely be eliminated from the dependency tree of the package.
-
-Consider the following example:
-```toml
-[package]
-name = "foo"
-# ...
-supported-targets = ['cfg(target_os = "linux")']
-
-[dependencies]
-bar = "0.1.0"
-```
-```toml
-[package]
-name = "bar"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-baz = "0.1.0"
-```
-Currently, `baz` is included in the dependency tree of `foo`, even though `foo` is never built for `macos`.
-With the addition of `supported-targets`, `baz` can be pruned from the dependency tree of `foo`, since
-`target_os = "macos"` is mutually exclusive with `target_os = "linux"`.
-
-Formally, dependencies (and transitive dependencies) under `[target.**.dependencies]` tables are
-eliminated from the dependency tree of a package if the `supported-targets` of the package is mutually exclusive
-with the target preconditions of the dependency.
 
 # Drawbacks
 [drawbacks]: #drawbacks
@@ -455,31 +253,230 @@ to run the interpreter can run the package.
 # Future possibilities
 [future-possibilities]: #future-possibilities
 
-## Restrict build dependencies
-[restrict-build-dependencies]: #restrict-build-dependencies
+## Ensuring proper use of dependencies
 
-Currently, a build script can have any dependency. A problem can arise if a crate's build script depends on
-a package that does not support `target_os = "windows"` for example. With this RFC, it would be
-possible to only allow dependencies supporting all targets in build scripts.
+By leveraging compilation errors, it would be possible to ensure that a package only uses dependencies that
+support the package's `supported-targets`. This would be done by comparing the `supported-targets` of the package
+with the `supported-targets` of the dependencies.
 
-## Lint against useless target-specific tables
+Cargo's documentation should give clear guidance for when to use this field, and should not suggest using
+it by default. In particular, we should steer users to use this when they have good reason to believe the
+crate will not compile or work as expected (e.g. because it uses target-specific APIs), and not use it merely
+for "I haven't personally tested this on other targets".
 
-If a package has:
+### Compatibility of `[dependencies]`
+
+One could restrict the set of `supported-targets` of a package to be a subset of the `supported-targets` of its
+`[dependencies]`. If the crate itself had no `supported-targets` specified,
+then all dependencies would need to support all targets.
+
+If a dependency does not respect this requirement (if it is not compatible), an error would be raised and the build would fail.
+
+Enforcing this means a package cannot support targets that are not supported by its dependencies,
+which is a good thing assuming the dependencies have correctly specified their `supported-targets`.
+
+### Compatibility of `[dev-dependencies]`
+
+`[dev-dependencies]` should be checked the using the same method as regular `[dependencies]`. That is, the package's
+`supported-targets` needs to be a subset of every `[dev-dependencies]`'s `supported-targets`. The rationale is
+that an example, test, or benchmark has access to the package's library and binaries, and so it must respect the
+`supported-targets` of the package.
+
+### Compatibility of `[build-dependencies]`
+
+What makes `[build-dependencies]` unique is that they are built for the host computer,
+and not the selected target. As such, they are not restrained by the `supported-targets`
+of the package. Hence, all dependencies are allowed in the `[build-dependencies]` table.
+However, a build error could be raised if one of the build dependencies does not support
+the _host_'s target-triple at build time.
+
+A problem can arise if a crate's build script depends on a package that does not support
+`target_os = "windows"` for example. It would be possible to only allow dependencies supporting all
+targets in build scripts.
+
+
+### Platform-specific dependencies
+[platform-specific-dependencies]: #platform-specific-dependencies
+
+Platform-specific dependencies are dependencies under the `[target.**]` table. This includes
+normal dependencies, build-dependencies, and dev-dependencies. Rules could be defined to ensure
+that platform-specific dependencies are declared correctly.
+
+When platform-specific dependencies are declared, the conditions under which they are
+declared should be a subset of each dependency's `supported-targets`.
+For example, a dependency declared under `[target.'cfg(target_os = "linux")'.dependencies]`
+should at least support the `linux` OS.
+
+For regular dependencies and dev-dependencies, it would suffice for a platform-specific dependency to support the
+_intersection_ of the package's supported-targets, and the target conditions it is declared under.
+For example:
 ```toml
 [package]
-name = "example"
 # ...
 supported-targets = ['cfg(target_os = "linux")']
 
-[target.'cfg(target_os = "windows")'.dependencies]
-# ...
+[target.'cfg(target_pointer_width = "64")'.dependencies]
+foo = "0.1.0"
 ```
-A lint could be added to highlight the fact that the `[target]` table is useless.
+Here, it would suffice for `foo` to support `cfg(all(target_os = "linux", target_pointer_width = "64"))`.
 
-## More `cfg` relations
-[more-cfg-relations]: #more-cfg-relations
+This can be used to ensure that a package properly uses dependencies that are only available on specific targets.
+Assuming that the crate `io-uring` has `supported-targets = ['cfg(target_os = "linux")']`, a crate could depend on
+it using:
+```toml
+[package]
+# ...
 
-Consider the following scenario:
+[target.'cfg(target_os = "linux")'.dependencies]
+io-uring = "0.1.0"
+```
+This would not be required if the package itself had `supported-targets = ['cfg(target_os = "linux")']`.
+
+### Artifact dependencies
+
+If an artifact dependency has a `target` field, then the dependency would not be checked against the
+package's `supported-targets`. However, the selected `target` for the dependency would need to be compatible with
+the dependency's `supported-targets`, or else an error is raised. If the artifact dependency does not have a
+`target` field, then it would be checked against the package's `supported-targets`, like any other dependency.
+
+
+## Eliminating unused dependencies from `Cargo.lock`
+
+A package's dependencies may themselves have `[target.'cfg(..)'.dependencies]` tables, which may never be used because of the
+`supported-targets` restrictions of the package. These can safely be eliminated from the dependency tree of the package.
+
+Consider the following example:
+```toml
+[package]
+name = "foo"
+# ...
+supported-targets = ['cfg(target_os = "linux")']
+
+[dependencies]
+bar = "0.1.0"
+```
+```toml
+[package]
+name = "bar"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+baz = "0.1.0"
+```
+Currently, `baz` is included in the dependency tree of `foo`, even though `foo` is never built for `macos`.
+`baz` could be pruned from the dependency tree of `foo`, since
+`target_os = "macos"` is mutually exclusive with `target_os = "linux"`.
+
+Formally, dependencies (and transitive dependencies) under `[target.**.dependencies]` tables are
+eliminated from the dependency tree of a package if the `supported-targets` of the package is mutually exclusive
+with the target preconditions of the dependency.
+
+
+### Comparing `supported-targets`
+
+When comparing two `supported-targets` lists, it is necessary to know if one is a _subset_ of the other,
+or if both are _mutually exclusive_. To proceed, both lists are flattened to
+the same representation, and they are then compared. This process is done internally, and does not
+affect the `Cargo.toml` file.
+
+### Flattening `not`, `any`, and `all` in `cfg` specifications
+[flattening-cfg]: #flattening-not-any-and-all-in-cfg-specifications
+
+Since `cfg` specifications can contain `not`, `any`, and `all` operators, these must be handled.
+This is done by flattening the `cfg` specification to a specific form. This form is equivalent to
+[disjunctive normal form](https://en.wikipedia.org/wiki/Disjunctive_normal_form).
+
+The `not` operator is "passed through" `any` and `all` operators using
+[De Morgan's laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws), until it reaches a single `cfg`
+specification. For example, `cfg(not(all(target_os = "linux", target_arch = "x86_64")))`
+is equivalent to `cfg(any(not(target_os = "linux"), not(target_arch = "x86_64")))`.
+
+Top level `any` operators are separated into multiple `cfg` specifications. For example,
+```toml
+supported-targets = ['cfg(any(target_os = "linux", target_os = "macos"))']
+```
+is transformed into
+```toml
+supported-targets = ['cfg(target_os = "linux")', 'cfg(target_os = "macos")']
+```
+
+Top level `all` operators are kept as is, as long as they do not contain nested `any`s or `all`s.
+If there is an `any` inside an `all`, the statement is split into multiple `all` statements.
+For example,
+```toml
+supported-targets = ['cfg(all(target_os = "linux", any(target_arch = "x86_64", target_arch = "arm"))']
+```
+is transformed into
+```toml
+supported-targets = [
+    'cfg(all(target_os = "linux", target_arch = "x86_64"))',
+    'cfg(all(target_os = "linux", target_arch = "arm"))'
+]
+```
+If an `all` contains an `all`, the inner `all` is flattened into the outer `all`.
+
+The result of these transformations on a `cfg` specification is a list of `cfg` specifications that 
+either contains a single specification, or an `all` operator with no nested operators.
+
+This procedure is run on all `cfg` elements of a `supported-targets` list. The resulting list
+can then be used to evaluate relations. In the end, the flattened representation can only contain
+explicit target-triples, `cfg(A)` containing a single `A`, or `cfg(all(A, B, ...))` with all
+`A, B, ...` being single elements.
+
+### The subset relation
+
+To determine if a `supported-targets` list "A" is a subset of another such list "B", the standard mathematical
+definition of subset is used. That is, "A" is a subset of "B" if and only if each element of "A" is
+contained in "B".
+
+So each element of "A" is compared against each element of "B" using the following rules:
+- A `target-triple` is a subset of another `target-triple` if they are the same.
+- A `target-triple` is a subset of a `cfg(..)` if the `cfg(..)` is satisfied by the `target-triple`.
+- A `cfg(..)` is not a subset of a `target-triple`.
+- A `cfg(all(A, B, ...))` is a subset of a `cfg(all(C, D ...))`,
+    if the list `C, D, ...` is a subset of the list `A, B, ...`.
+
+_Note_: All possible cases have been covered, since `cfg(A) == cfg(all(A))`.
+
+### Mutual exclusivity
+
+For a `supported-targets` list "A" to be mutually exclusive with another such list "B", each element of "A" must
+be mutually exclusive with _all_ elements of "B" (The inverse is also true).
+
+So each element of "A" is compared against each element of "B" using the following rules:
+- A `target-triple` is mutually exclusive with another `target-triple` if they are different.
+- A `target-triple` is mutually exclusive with a `cfg(..)` if the `cfg(..)` is not satisfied by
+    the `target-triple`.
+- A `cfg(all(A, B, ...))` is mutually exclusive with a `cfg(all(C, D, ...))` if any element of the list
+    `A, B, ...` is mutually exclusive with any element of the list `C, D, ...`.
+
+_Note_: All possible cases have been covered, since `cfg(A) == cfg(all(A))`.
+
+Two `cfg` singletons are mutually exclusive under the following rules:
+- `cfg(A)` is mutually exclusive with `cfg(not(A))`.
+- `cfg(<option> = "A")` is mutually exclusive with `cfg(<option> = "B")` if `A` and `B` are different,
+    and `<option>` has mutually exclusive elements.
+
+Some `cfg` options have mutually exclusive elements, while some do not. What is meant here is, for example,
+`target_arch = "x86_64"` and `target_arch = "arm"` are mutually exclusive (a target-triple cannot have both),
+while `target_feature = "avx"` and `target_feature = "rdrand"` are not.
+
+`cfg` options that have mutually exclusive elements:
+- `target_arch`
+- `target_os`
+- `target_env`
+- `target_abi`
+- `target_endian`
+- `target_pointer_width`
+- `target_vendor`
+
+Those that do not:
+- `target_feature`
+- `target_has_atomic`
+- `target_family`
+
+### More `cfg` relations
+
+Even more relations could be defined, Consider the following scenario:
 ```toml
 [package]
 name = "bar"
@@ -494,20 +491,9 @@ supported-targets = ['cfg(target_os = "macos")']
 [dependencies]
 bar = "0.1.0"
 ```
-With the RFC implemented, a build error would be raised when compiling `foo`, because `cargo`
-does not understand that `target_os = "macos"` is a subset of `target_family = "unix"`.
+This could compile if `target_os = "macos"` was a subset of `target_family = "unix"`.
 
-To go around this issue, `foo` would need to use:
-```toml
-[package]
-name = "foo"
-supported-targets = ['cfg(all(target_family = "unix", target_os = "macos"))']
-
-[dependencies]
-bar = "0.1.0"
-```
-
-To improve usability, two extra relations can be defined:
+Specifically two extra relations can be defined:
 - `cfg(target_os = "windows")` ⊆ `cfg(target_family = "windows")`.
 - `cfg(target_os = <unix-os>)` ⊆ `cfg(target_family = "unix")`, where `<unix-os>` is any of
     `["freebsd", "linux", "netbsd", "redox", "illumos", "fuchsia", "emscripten", "android", "ios", "macos", "solaris"]`.
@@ -523,6 +509,20 @@ with `target_os = "linux"`, for example.
 
 _Note:_ More relations could be defined, for example `target_feature = "neon"` ⊆ `target_arch = "arm"`. With this however,
 things start to get complicated.
+
+## Lint against useless target-specific tables
+
+If a package has:
+```toml
+[package]
+name = "example"
+# ...
+supported-targets = ['cfg(target_os = "linux")']
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# ...
+```
+A lint could be added to highlight the fact that the `[target]` table is useless.
 
 ## `supported-targets` at the cargo-target level
 
