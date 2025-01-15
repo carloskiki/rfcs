@@ -42,13 +42,14 @@ unsupported targets cannot build the crate, and also makes build errors specific
 Once it is known that a package will only ever build for a subset of targets, it opens the door for
 more advanced control over dependencies. For example, transitive dependencies declared under a
 `[target.**.dependencies]` table could be excluded from `Cargo.lock` if the dependent's
-`supported-targets` is mutually exclusive with the target preconditions under which the dependencies
-are included. This is especially relevant to areas such as WebAssembly and embedded programming,
-where one usually supports only a few specific targets. Currently, auditing and vendoring is tedious
-because dependencies under `[target.**.dependencies]` tables always make their way in the dependency
-tree, even though they may not actually be used.
+`supported-targets` are mutually exclusive with the target preconditions under which the
+dependencies are included. This is especially relevant to areas such as WebAssembly and embedded
+programming, where one usually supports only a few specific targets. Currently, auditing and
+vendoring is tedious because dependencies under `[target.**.dependencies]` tables always make their
+way in the dependency tree, even though they may not actually be used.
 
-# Guide-level explanation [guide-level-explanation]: #guide-level-explanation
+# Guide-level explanation
+[guide-level-explanation]: #guide-level-explanation
 
 The `supported-targets` field can be added to `Cargo.toml` under the `[package]` table.
 
@@ -79,14 +80,15 @@ target.
 
 This feature should be used when a package clearly does not support all targets. For example:
 `io-uring` requires `cfg(target_os = "linux")`, `gloo` requires `cfg(target_family = "wasm")`, and
-`riscv` requires `cfg(target_arch = "riscv32")` or `cfg(target_arch = "riscv64")`.
+`riscv` requires `cfg(any(target_arch = "riscv32", target_arch = "riscv64"))`.
 
 This feature increases cargo's knowledge of a package. For example, when working in a workspace
 where some packages are for a platform with `target_os = "none"`, and some others are tools that
 require a desktop OS, using `supported-targets` makes `cargo <command>` ignore packages which have
 `supported-targets` that are not satisfied by the selected target.
 
-# Reference-level explanation [reference-level-explanation]: #reference-level-explanation
+# Reference-level explanation
+[reference-level-explanation]: #reference-level-explanation
 
 When a `cargo` build command (e.g. `check`, `build`, `run`, `clippy`) is run, it checks that the
 selected target satisfies the `supported-targets` of the package being built. If it does not, the
@@ -105,22 +107,24 @@ To determine if an entry in `supported-targets` is a target name or a `cfg` spec
 mechanism as for `[target.'cfg(..)']` is used (using
 [`cargo-platform`](https://docs.rs/cargo-platform/latest/cargo_platform/index.html)).
 
-## Ignoring builds for unsupported targets [ignoring-builds]:
-#igonring-builds-for-unsupported-targets
+## Ignoring builds for unsupported targets
+[ignoring-builds]: #igonring-builds-for-unsupported-targets
 
 If cargo is invoked in a workspace or virtual workspace without specifying a package as
 build-target, then `cargo` skips any package that does not support the selected target. If a package
 is specified using `--package` or if `cargo` is invoked on a single package, and the selected target
 does not satisfy the `supported-targets` of the package, then an error is raised.
 
-# Drawbacks [drawbacks]: #drawbacks
+# Drawbacks
+[drawbacks]: #drawbacks
 
 - Once implemented this does not yet solve the problem of dependency pruning in `Cargo.lock`, which
   is a common use case for this feature.
 - This is the first step towards a target aware `cargo`, which may increase `cargo`'s complexity,
   and bring more feature requests along these lines.
 
-# Rationale and alternatives [rationale-and-alternatives]: #rationale-and-alternatives
+# Rationale and alternatives
+[rationale-and-alternatives]: #rationale-and-alternatives
 
 ## Format
 
@@ -239,12 +243,14 @@ languages, vendoring dependencies is a common practice, and the user would be re
 ensuring that the dependencies are compatible with the target. For interpreted languages, this is a
 non-issue because any platform being able to run the interpreter can run the package.
 
-# Unresolved questions [unresolved-questions]: #unresolved-questions
+# Unresolved questions
+[unresolved-questions]: #unresolved-questions
 
 - What if one wants to exclude a single target-triple? Groups can be excluded with `cfg(not(..))`,
   but there is currently no way of excluding specific targets (Would anyone ever require this?).
 
-# Future possibilities [future-possibilities]: #future-possibilities
+# Future possibilities
+[future-possibilities]: #future-possibilities
 
 ## Ensuring proper use of dependencies
 
@@ -288,7 +294,7 @@ A problem can arise if a crate's build script depends on a package that does not
 `[build-dependencies]`.
 
 
-### Platform-specific dependencies [platform-specific-dependencies]: #platform-specific-dependencies
+### Platform-specific dependencies
 
 Platform-specific dependencies are dependencies under the `[target.**]` table. This includes normal
 dependencies, build-dependencies, and dev-dependencies. Rules could be defined to ensure that
