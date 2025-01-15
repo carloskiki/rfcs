@@ -214,6 +214,8 @@ with the same attribute is added, the whole ecosystem would have to be updated.
 # Prior art
 [prior-art]: #prior-art
 
+TODO: update
+
 Previously, crates have mainly used their documentation to specify which targets they support, or they would
 leave it up to the user to infer it. Some crates also made use of compile time errors to ensure that
 `cfg` requirements are met, for example:
@@ -242,6 +244,8 @@ to run the interpreter can run the package.
 
 # Unresolved questions
 [unresolved-questions]: #unresolved-questions
+
+TODO: update
 
 - What if one wants to exclude a single target-triple? Groups can be excluded with `cfg(not(..))`, but there
 	is currently no way of excluding specific targets (Would anyone ever require this?).
@@ -277,7 +281,7 @@ which is a good thing assuming the dependencies have correctly specified their `
 
 ### Compatibility of `[dev-dependencies]`
 
-`[dev-dependencies]` should be checked the using the same method as regular `[dependencies]`. That is, the package's
+`[dev-dependencies]` should be checked using the same method as regular `[dependencies]`. That is, the package's
 `supported-targets` needs to be a subset of every `[dev-dependencies]`'s `supported-targets`. The rationale is
 that an example, test, or benchmark has access to the package's library and binaries, and so it must respect the
 `supported-targets` of the package.
@@ -292,7 +296,7 @@ the _host_'s target-triple at build time.
 
 A problem can arise if a crate's build script depends on a package that does not support
 `target_os = "windows"` for example. It would be possible to only allow dependencies supporting all
-targets in build scripts.
+targets in `[build-dependencies]`.
 
 
 ### Platform-specific dependencies
@@ -320,7 +324,7 @@ foo = "0.1.0"
 ```
 Here, it would suffice for `foo` to support `cfg(all(target_os = "linux", target_pointer_width = "64"))`.
 
-This can be used to ensure that a package properly uses dependencies that are only available on specific targets.
+This would ensure that a package properly uses dependencies that are not available on all targets.
 Assuming that the crate `io-uring` has `supported-targets = ['cfg(target_os = "linux")']`, a crate could depend on
 it using:
 ```toml
@@ -370,11 +374,11 @@ Formally, dependencies (and transitive dependencies) under `[target.**.dependenc
 eliminated from the dependency tree of a package if the `supported-targets` of the package is mutually exclusive
 with the target preconditions of the dependency.
 
+## Comparing `supported-targets`
 
-### Comparing `supported-targets`
-
-When comparing two `supported-targets` lists, it is necessary to know if one is a _subset_ of the other,
-or if both are _mutually exclusive_. To proceed, both lists are flattened to
+To prune the dependency tree, and to ensure proper use of dependencies, it becomes necessary to compare
+`supported-targets` lists. When comparing two `supported-targets` lists, it is necessary to know if one
+is a _subset_ of the other, or if both are _mutually exclusive_. To proceed, both lists are flattened to
 the same representation, and they are then compared. This process is done internally, and does not
 affect the `Cargo.toml` file.
 
@@ -476,7 +480,7 @@ Those that do not:
 
 ### More `cfg` relations
 
-Even more relations could be defined, Consider the following scenario:
+Even more relations could be defined. Consider the following scenario:
 ```toml
 [package]
 name = "bar"
@@ -493,7 +497,7 @@ bar = "0.1.0"
 ```
 This could compile if `target_os = "macos"` was a subset of `target_family = "unix"`.
 
-Specifically two extra relations can be defined:
+Specifically, two extra relations can be defined:
 - `cfg(target_os = "windows")` ⊆ `cfg(target_family = "windows")`.
 - `cfg(target_os = <unix-os>)` ⊆ `cfg(target_family = "unix")`, where `<unix-os>` is any of
     `["freebsd", "linux", "netbsd", "redox", "illumos", "fuchsia", "emscripten", "android", "ios", "macos", "solaris"]`.
