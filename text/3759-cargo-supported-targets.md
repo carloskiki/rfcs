@@ -13,8 +13,7 @@ Here, _target_ refers to the "Target Architecture" for which a package is built.
 
 The addition of `supported-targets` to `Cargo.toml`.
 This field is an array of `target-triple`/`cfg` specifications that restricts the set of targets which
-a package supports. Packages must meet the `supported-targets` of their
-dependencies, and they can only be built for targets that satisfy their `supported-targets`.
+a package supports. Packages can only be built for targets that satisfy their `supported-targets`.
 
 # Motivation
 
